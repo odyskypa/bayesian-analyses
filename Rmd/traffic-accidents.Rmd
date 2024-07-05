@@ -1,0 +1,311 @@
+---
+title: "Exercise 1.3: Traffic Accidents (Poisson)"
+author: "Odysseas Kyparissis"
+date: "`r format(Sys.time(), '%d/%b/%Y')`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Solution
+
+## (a) Draw these three prior distributions in the same graph
+
+```{r data}
+###### data
+
+y <- c(3, 2, 0, 8, 2, 4, 6, 1) 
+n <- length(y)
+n
+y
+```
+
+To begin with, a histogram of the observed data is presented below, just
+to get an overview of the distribution of the information we have
+available. Although, the histogram is presented in frequencies.
+
+```{r histogram.of.accidents}
+hist(y, 
+     breaks = 8,            # Number of bins
+     col = "skyblue",        # Fill color
+     border = "black",       # Border color
+     main = "Histogram of Accidents", # Main title
+     xlab = "Value of y",    # X-axis label
+     ylab = "Frequency",     # Y-axis label
+     xlim = c(min(y), max(y)), # X-axis limits
+     ylim = c(0, 3),         # Y-axis limits
+     probability = FALSE,     # Normalize to probability density
+     las = 1                  # Make labels horizontal
+)
+```
+
+Additionally, some basic statistics are calculated to help the
+understandability of the methods performed in the next sections.
+
+```{r mean.std.y}
+mean.y <- mean(y)
+std.y <- sd(y)
+mean.y; std.y
+```
+
+For visualizing the prior distributions of the three students, firstly,
+it is necessary to set their probability distribution functions. This is
+completed with the usage of the function `dgamma` for Bry and Claudia,
+while Carles assumes that all possible values for μ are equally likely
+and uses a flat prior, $π(μ) = 1$ for $μ > 0$. This is an improper prior
+because it doesn't integrate to 1 over all possible values of $μ$, but a
+simulation can stil be generated based on his assumption, if the
+posterior generated is a proper one. After setting up the functions,
+their visualization takes places by providing as inputs, values of $x$
+ranging from 0 to 30. To be more precise, the priors $π(μ)$ as mentioned
+in the statement of the exercise, refer to the information we have about
+the parameter $μ$ (or mostly know as $λ$) of the $Poisson$ distribution.
+
+```{r priors}
+# Initialize the probability densities for the three prior distributions
+prior_bru <- function(x) dgamma(x, 0.01, 0.001)
+prior_claudia <- function(x) dgamma(x, 6.25, 2.5)
+prior_carles <- function(x) ifelse(x >= 0, 1, 0)
+
+# Define custom colors for the distributions
+bruprior_color <- "red"
+claudiaprior_color <- "blue"
+carlesprior_color <- "green"
+
+
+par(mfrow = c(1, 1))
+plot(prior_bru, xlim = c(0, 30), ylim = c(0, 1), main = "Prior Distributions",
+     ylab = "", xlab = "μ", lty = 1, col = bruprior_color)
+plot(prior_claudia, xlim = c(0, 30), add = TRUE, lty = 2, col = claudiaprior_color)
+plot(prior_carles, xlim = c(0, 30), add = TRUE, lty = 4, col = carlesprior_color)
+legend("topright", c("prior_bru", "prior_claudia", "prior_carles"),
+       lty = c(1, 2, 4), col = c(bruprior_color, claudiaprior_color, carlesprior_color))
+```
+
+It can be seen that Carle's prior is a flat prior (improper one, since
+it does not integrate to 1), Claudia's distribution gives more weight to
+the parameter of the Poisson distribution to be between 1 and 5,
+although Bru's (as it can be seen in the following figure as well),
+gives more weight to the values between 0 to 2 approximately.
+
+It was necessary to visualize Bru's prior in a more clear way. In the
+previous plot it is not visible due to the difference in the scales of
+the probability values for the three prior distributions.
+
+```{r brus-prior}
+plot(prior_bru, xlim=c(0,30), main = "Bru's Prior", ylab="", xlab = "μ", lty=1, col = bruprior_color)
+```
+
+## (b) Draw the likelihood function
+
+For this question, by following the information provided in
+[here](https://math.stackexchange.com/questions/2399613/how-to-derive-the-likelihood-and-loglikelihood-of-the-poisson-distribution),
+the likelihood function is set up. After the likelihood function being
+set up, it is being plotted in a range of $λ$ values between 0 and 10.
+The likelihood function, has integrated the observed data that the
+students gathered. For this reason, it shows that it is most likely that
+the parameter $μ$ of the $Poisson$ distribution, which is the
+probability model, will be between 3 and 5.
+
+```{r likelihood}
+likelihood <- function(lambda) {
+ lambda^sum(y)*exp(-n*lambda)
+}
+```
+
+```{r likelihood-plot}
+plot(likelihood, xlim=c(0,10), main = "Likelihood function", ylab="", xlab = "μ",lty=1)
+```
+
+## (c) Draw the three posterior distributions in the same graph
+
+To continue with, the plot of the three posterior distributions is
+taking place. From the theory and the lab classes, it is know that, when
+a $Poisson$ distribution is used as the probability model, and a $Gamma$
+function as the prior distribution, the posterior distribution is
+defined as a new $Gamma$ function with parameters equal to
+$(a+sum(y), b+length(y))$. This has been applied in the cases of Bru and
+Claudia. As for Carles, again from the theory, it is known that, when a
+flat prior is used, meaning that the value of the prior is constant,
+then the posterior distribution is equal to the
+$Standardized Likelihood$ function. Once the functions have been
+defined, the generation of the plot takes place.
+
+```{r posteriors}
+#prior_bru <- function(x) dgamma(x, 0.01, 0.001)
+posterior_bru <- function(x)dgamma(x, 0.01 + sum(y), 0.001 + n)
+
+#prior_claudia <- function(x) dgamma(x, 6.25, 2.5)
+posterior_claudia <- function(x)dgamma(x, 6.25 + sum(y), 2.5 + n)
+
+#prior_carles <- function(x) ifelse(x > 0, 1, 0)
+posterior_carles <- function(lambda) {
+ (lambda^sum(y)*exp(-n*lambda)) /integrate(function(lambda)(lambda^sum(y)*exp(-n*lambda)), lower = 0, upper = 15)$value
+}
+
+# Define custom colors for the distributions
+bruposterior_color <- "red"
+claudiaposterior_color <- "blue"
+carlesposterior_color <- "green"
+
+par(mfrow = c(1, 1))
+plot(posterior_bru, xlim = c(0, 15), ylim = c(0, 0.8), main = "Posterior Distributions",
+     ylab = "", xlab = "μ", lty = 1, col = bruposterior_color)
+plot(posterior_claudia, xlim = c(0, 15), add = TRUE, lty = 2, col = claudiaposterior_color)
+plot(posterior_carles, xlim = c(0, 15), add = TRUE, lty = 4, col = carlesposterior_color)
+legend("topright", c("posterior_bru", "posterior_claudia", "posterior_carles"),
+       lty = c(1, 2, 4), col = c(bruposterior_color, claudiaposterior_color, carlesposterior_color))
+
+```
+
+The three different posterior distributions include both the prior
+knowledge of the three students about the parameters of the probability
+model, as well as the observations of the target variable they gathered.
+
+## (d) Calculate a 90% credible interval of the number of accidents for next weekend
+
+### For each of the three Bayesian models
+
+In this question, the calculation of a 90% credible interval for the
+number of accidents is completed. In order to answer this question,
+instead of using an analytical approach, a simulation was performed.
+More specifically, for Bru and Claudia, by using the function `rgamma`,
+but updated with the parameters of the $Gamma$ distribution, based on
+the posterior distributions of the Bayesian models, we generate 100.000
+estimations for the parameters of the $Poisson$ probability model.
+Consequently, those estimations are being used to generate 100.000
+values of the posterior predictive distribution of the Bayesian Models.
+As for Carles, since the posterior distribution is equal to the
+Standardized Likelihood, we use a technique to generate 100.000 random
+values of `lambdas`, which overcome the acceptance probability based on
+the likelihood function (see
+`chunk: generate.lambda.samples.for.Carles`). Once those lambdas have
+been generated, the same approach with Bru and Claudia is being used,
+meaning that those 100.000 random lambdas, are feeded into a $Poisson$
+generation algorithm, in order to obtain 100.000 values of Carle's
+posterior predictive distribution. Finally, by using the `quantile`
+function, we calculate the 5% and 95% probabilities of those
+distributions in order to generate an interval of 90%. The results are
+presented below.
+
+```{r generate.lambda.samples.for.Carles}
+sample_lambda <- function(num_samples) {
+  lambda_samples <- numeric(num_samples)
+  for (i in 1:num_samples) {
+    while (TRUE) {
+      lambda_candidate <- runif(1, 0, 15)  # Sample a lambda candidate
+      
+      # Calculate the acceptance probability
+      acceptance_prob <- likelihood(lambda_candidate)
+      
+      # Accept the candidate with probability acceptance_prob
+      if (runif(1) < acceptance_prob) {
+        lambda_samples[i] <- lambda_candidate
+        break  # Break out of the while loop
+      }
+    }
+  }
+  return(lambda_samples)
+}
+```
+
+```{r post.predictive.simulation}
+# Set the number of simulations
+num_simulations <- 100000
+
+# Initialize lists to store the results
+post_predictive_sim_bru <- vector("list", length = num_simulations)
+post_predictive_sim_claudia <- vector("list", length = num_simulations)
+post_predictive_sim_carles <- vector("list", length = num_simulations)
+
+lambdas <- sample_lambda(num_simulations)
+
+# Simulate from the three posterior distributions and calculate the predictive posterior
+for (i in 1:num_simulations) {
+  
+  # Simulate from the posterior distributions
+  sample_bru <- rgamma(1, shape = 0.01 + sum(y), rate = 0.001 + n)
+  
+  sample_claudia <- rgamma(1, shape = 6.25 + sum(y), rate = 2.5 + n)
+
+  # Calculate the posterior predictive distribution using the Poisson(μ) prior
+  predictive_bru <- rpois(1, lambda = sample_bru)
+  predictive_claudia <- rpois(1, lambda = sample_claudia)
+  predictive_carles <- rpois(1, lambda = lambdas[i])
+
+  # Store the results
+  post_predictive_sim_bru[i] <- predictive_bru
+  post_predictive_sim_claudia[i] <- predictive_claudia
+  post_predictive_sim_carles[i] <- predictive_carles
+}
+```
+
+```{r unlisting.results}
+ # Store the results
+post_predictive_sim_bru <- unlist(post_predictive_sim_bru)
+post_predictive_sim_claudia <- unlist(post_predictive_sim_claudia)
+post_predictive_sim_carles <- unlist(post_predictive_sim_carles)
+```
+
+```{r postirior.predictive.distributions.plot}
+par(mfrow = c(1, 1))
+
+# Bru's Posterior Predictive Distribution
+plot(table(post_predictive_sim_bru)/num_simulations, xlim=c(0, 15), ylab = "", xlab = "", col=bruposterior_color, lwd=0.5)
+title("Brus' Posterior Predictive Distribution")
+
+# Claudia's Posterior Predictive Distribution
+par(mfrow = c(1, 1))  # Reset the plot layout to one plot region
+plot(table(post_predictive_sim_claudia)/num_simulations, xlim=c(0, 15), ylab = "", xlab = "", col=claudiaposterior_color, lwd=0.5)
+title("Claudia's Posterior Predictive Distribution")
+
+# Carles's Posterior Predictive Distribution
+par(mfrow = c(1, 1))  # Reset the plot layout to one plot region
+plot(table(post_predictive_sim_carles)/num_simulations, xlim=c(0, 15), ylab = "", xlab = "", col=carlesposterior_color, lwd=0.5)
+title("Carle's Posterior Predictive Distribution")
+```
+
+```{r calculating.intervals.claudia}
+quantile_levels <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+quantile(post_predictive_sim_claudia, quantile_levels)
+
+# 5th percentile
+claudia_lower_quantile <- quantile(post_predictive_sim_claudia, 0.05)
+
+# 95th percentile
+claudia_upper_quantile <- quantile(post_predictive_sim_claudia, 0.95)
+```
+
+```{r calculating.intervals.bru}
+# 5th percentile
+quantile(post_predictive_sim_carles, quantile_levels)
+carles_lower_quantile <- quantile(post_predictive_sim_carles, 0.05)
+
+# 95th percentile
+carles_upper_quantile <- quantile(post_predictive_sim_carles, 0.95)
+```
+
+```{r calculating.intervals.carles}
+# 5th percentile
+quantile(post_predictive_sim_bru, quantile_levels)
+bru_lower_quantile <- quantile(post_predictive_sim_bru, 0.05)
+
+# 95th percentile
+bru_upper_quantile <- quantile(post_predictive_sim_bru, 0.95)
+```
+
+```{r}
+# Print the intervals for each vector
+cat("Claudia's 90% Interval: 
+    [", claudia_lower_quantile, ",", claudia_upper_quantile, "]\n")
+cat("Bru's 90% Interval: 
+    [", bru_lower_quantile, ",", bru_upper_quantile, "]\n")
+cat("Carle's 90% Interval: 
+    [", carles_lower_quantile, ",", carles_upper_quantile, "]\n")
+
+```

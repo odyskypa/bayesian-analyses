@@ -1,0 +1,371 @@
+---
+title: "Homework II - Bayesian Modelling (Yield of Potatoes)"
+author: "Odysseas Kyparissis"
+date: "`r format(Sys.time(), '%d/%b/%Y')`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load the ggplot2 library if not already loaded
+if (!require(ggplot2)) {
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+install.packages('R2jags', repos = "http://cran.fhcrc.org/")
+library(R2jags)
+```
+
+# Solution
+
+## Inspection of available data
+
+```{r data}
+###### data
+# x is fertilizer levels
+x <- c(1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5)
+# y is the yield of potatoes
+y <- c(25, 31, 27, 28, 36, 35, NA, 34) 
+n <- length(y)
+n
+x
+y
+```
+
+To begin with, the observed data are transformed into a data frame for
+easier manipulation. As it can be seen above, for the value of
+$fertilizer\_level (x) = 4.0$ there is a missing value for the yielding
+of potatoes $(y)$. For that reason, we exclude this row from the data,
+to perform the estimation of the requested distributions.
+
+```{r dataframe_creation_NA_removal}
+# Create a data frame
+df <- data.frame(x, y)
+
+# Set column names for 'x' and 'y'
+names(df) <- c("fertilizer_level", "potatoes_yield")
+
+# Remove rows with NA values
+df.noNA <- df[complete.cases(df), ]
+row.names(df.noNA) <- NULL
+
+
+# Display the resulting data frame with column names
+print(df.noNA)
+```
+
+To inspect the available data, a histogram for both the target and
+explanatory variables are presented below, just to get an overview of
+the distribution of the information we have available. Although, the
+histograms is presented in frequencies.
+
+```{r histogram.of.yield}
+hist(df.noNA$potatoes_yield,
+     col = "skyblue",        # Fill color
+     border = "black",       # Border color
+     main = "Histogram of Potatoes Yeild", # Main title
+     xlab = "Value of y",    # X-axis label
+     ylab = "Frequency",     # Y-axis label
+     probability = FALSE,    # Normalize to probability density
+     las = 1                 # Make labels horizontal
+)
+```
+
+```{r histogram.of.fertilizer_levels}
+hist(df.noNA$fertilizer_level,
+     col = "skyblue",        # Fill color
+     border = "black",       # Border color
+     main = "Histogram of Fertilizer Level", # Main title
+     xlab = "Value of x",    # X-axis label
+     ylab = "Frequency",     # Y-axis label         # Y-axis limits
+     probability = FALSE,     # Normalize to probability density
+     las = 1                  # Make labels horizontal
+)
+```
+
+Since the sample size is very small, and the number of observations are
+only 8, the histograms do not provide very informative visualizations. A
+more informative visualization could be the scatter plot of the
+explanatory variable versus the target variable, which is presented
+below.
+
+```{r scatter.plot}
+# Create a scatter plot with a fitted line
+plot <- ggplot(df.noNA, aes(x = fertilizer_level, y = potatoes_yield)) +
+  geom_point(color = "orange", size = 4) +
+  geom_smooth(method = "lm", formula = y ~ x, color = "skyblue", se = TRUE) + # Add a linear regression line
+  labs(
+    title = "Scatter Plot of Fertilizer Level vs. Potatoes Yield with Fitted Line",
+    x = "Fertilizer Level",
+    y = "Potatoes Yield"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Display the scatter plot
+print(plot)
+```
+
+From the visual result, it can be understood that some correlation
+between the two variables exist. Moreover, we can see that the
+variability of the potatoes yield increases when the fertilizer level
+increases. A linear regression, would have smaller variability for the
+potato yielding value for low levels of fertilizer level ($2\ to\ 3$),
+but as the values of fertilizer level gets higher the variability is
+bigger. However, even the difference in the variability levels of
+potatoes yield are not so significant.
+
+Let's take a look at the logarithmic scales of both variables.
+
+```{r scatter.plot.log}
+# Create a scatter plot with logarithmic scales
+# Take the logarithm of 'fertilizer_level' and 'potatoes_yield'
+df.noNA$log_fertilizer_level <- log(df.noNA$fertilizer_level)
+df.noNA$log_potatoes_yield <- log(df.noNA$potatoes_yield)
+
+# Create a scatter plot with logarithmic scales
+plot <- ggplot(df.noNA, aes(x = log_fertilizer_level, y = log_potatoes_yield)) +
+  geom_point(color = "orange", size = 4) +
+  geom_smooth(method = "lm", formula = y ~ x, color = "skyblue", se = TRUE) + # Add a linear regression line
+  labs(
+    title = "Scatter Plot of Logarithmic Fertilizer Level vs. Logarithmic Potatoes Yield",
+    x = "Logarithmic Fertilizer Level",
+    y = "Logarithmic Potatoes Yield"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Display the scatter plot
+print(plot)
+```
+
+There is not a big difference in the scatter plots between logarithmic
+and linear scales. For that reason, the solution of this exercise will
+continue by using the original values of the statement, and not the
+logarithmic ones.
+
+Additionally, some basic statistics are calculated on the sample, to
+help the understandability of the methods performed in the next
+sections.
+
+```{r statistics}
+# Drop logarithmic columns
+df.noNA <- df.noNA[, c("fertilizer_level", "potatoes_yield")]
+mean.x <- mean(df.noNA$fertilizer_level)
+mean.y <- mean(df.noNA$potatoes_yield)
+std.x <- sd(df.noNA$fertilizer_level)
+std.y <- sd(df.noNA$potatoes_yield)
+mean.x ; mean.y; 
+std.x ; std.y
+```
+
+Also, we know that, the potatoes yield ($y$) given the fertilizer level
+($x$) is: $p(y|x) \sim Normal(\beta_0 + \beta_1x, \sigma)$.
+
+## (a) Using non-informative priors for the parameters draw the posterior distribution for all of them
+
+Based on the knowledge we have about the values of yielding potatoes to
+follow a Normal distribution, with mean value equal to
+$\beta_o + \beta_1x$, where $x$ is the fertilizer level, and variance
+equal to $\sigma$, we have to select the prior distributions for each of
+the 3 parameters $\beta_0, \beta_1, \ and \ \sigma$, of the Bayesian
+Model. As we have no prior information on the parameters, we will choose
+Normal distributions with huge variances for $\beta_0 \ and \ \beta_1$,
+while for $\sigma$ we select a Uniform distribution with a very small
+$a$ and a huge $b$ . More specifically:
+
+$\beta_0 \sim Normal(0, 1000000)$
+
+$\beta_1 \sim Normal(0, 1000000)$
+
+$\sigma \sim Uniform(0, 1000000)$
+
+It's always good to have a look at the prior distributions in a
+graphical way before proceeding with the simulations.
+
+```{r beta_0.prior}
+plot(function(x)dnorm(x,0,1000000), xlim = c(-1000000,1000000), xlab=expression(beta[0]), main="Prior Distribution", ylab=expression(paste(pi,"(",beta[0],")")))
+
+```
+
+```{r beta_1.prior}
+plot(function(x)dnorm(x,0,1000000), xlim = c(-1000000,1000000), xlab=expression(beta[1]), main="Prior Distribution", ylab=expression(paste(pi,"(",beta[1],")")))
+```
+
+```{r sigma.prior}
+plot(function(x)dunif(x,0,1000000), xlim = c(0,1000000), xlab=expression(sigma), main="Prior Distribution", ylab=expression(paste(pi,"(",sigma,")")))
+```
+
+All three graphs, represent the uncertainty we have about the three
+parameters of the Bayesian model. Both a Normal distribution with huge
+variance, or a uniform distribution with small $\alpha$ and huge
+$\beta$, can be used as non-informative priors. In that way, we are
+expressing a huge uncertainty about the intercept and the angle of the
+regression slope, as well as its variability. Meaning, we are describing
+the probability of the parameters to get a certain value to be equally
+distributed in a range of real numbers.
+
+Now we can proceed with the definition of the Bayesian Model, with the
+help of JAGS. By performing formula transformations to bring the priors
+at the same level as the functions of JAGS are defined, the following
+model is produced. First of all, we are gonna ask from JAGS to simulate
+two Marcov Chains, of 3 Thins of 10000 iterations, and 1000 burning
+simulations. It is necessary to correctly define the distributions of
+the probability model, as well as the distributions of the priors.
+
+```{r Bayesian.Model}
+
+# parameters MCMC
+Iter <- 10000
+Burn <- 1000
+Chain <- 2
+Thin <- 3
+
+regression <- "
+model {
+ for (i in 1:n) {
+  y[i] ~ dnorm(b0+b1*x[i], tau)
+ }
+ # prior distributions
+ b0 ~ dnorm(0, 1.0e-7)
+ b1 ~ dnorm(0, 1.0e-7)
+ sigma ~ dunif(0, 100000)
+ tau <- pow(sigma, -2)
+
+}
+"
+```
+
+Once everything is defined, we need to provide the observed data and
+some initialization values for the 3 parameters to JAGS in order to
+begin the simulations.
+
+```{r JAGS}
+# data is set to include the x and y values of the experiment
+data <- list(n = nrow(df.noNA), 
+             y = df.noNA$potatoes_yield, x = df.noNA$fertilizer_level)
+
+# initials contain two different sets of initialization values for the parameters
+# one for each chain
+initials <- list(list(b0=0, b1=0, sigma=1),list(b0=10, b1=10, sigma=3.16))
+
+# explicitly state the parameters of the model used with JAGS
+parameters <- c("b0", "b1", "sigma")
+
+model.potatoes <- jags(data, initials, parameters.to.save=parameters, 
+ 		      model=textConnection(regression),             
+      		n.iter=(Iter*Thin+Burn),n.burnin=Burn, n.thin=Thin, n.chains=Chain)
+```
+
+Once the simulation is done, we can take a look at the summary of JAGS
+for the specific model.
+
+```{r jags.summary}
+print(model.potatoes)
+
+```
+
+From the summary, one can find point estimates of the parameters, as
+well as their percentiles. Before proceeding with the plotting of the
+posterior distributions of the parameters, it is necessary to check if
+the MCMC algorithm converged apropprietly to its stationary distribution
+for each parameter, which is a good approximation of their posterior
+distribution.
+
+```{r traceplots_MCMC}
+traceplot(model.potatoes, mfrow = c(length(parameters),1), varname = parameters)
+```
+
+From the traceplot, one can understand that the convergence of the MCMC
+algorithm has been accomplished.
+
+In the following plot, the 3 first graphs present the posterior
+distribution of each parameter, together with their 95% CI. The final
+graph presents the regression line that describes the mean value of the
+Normal distribution, which is the function that the yielding of potatoes
+is following.
+
+```{r}
+attach.jags(model.potatoes)
+
+  par(mfrow=c(2,2))
+
+	plot(density(b0, adjust = 1.5), main = expression(paste(pi,"(",beta[0],"|y)")), xlab= "" ); abline(v=quantile(b0,c(0.025,0.975)),lty=3)
+	plot(density(b1, adjust = 1.5), main = expression(paste(pi,"(",beta[1],"|y)")), xlab= ""  ); abline(v=quantile(b1,c(0.025,0.975)),lty=3)
+	plot(density(sigma, adjust = 1.5), main = expression(paste(pi,"(",sigma,"|y)")), xlab= "" ); abline(v=quantile(sigma,c(0.025,0.975)),lty=3)
+
+  plot(c(0,6), c(20,40), type = "n", xlab = "Fertilizer Level", 
+       ylab ="Potatoes Yield" )
+  points(data$x, data$y, pch=19, col="gray50")
+  abline(coef=c(mean(b0),mean(b1)))
+
+detach.jags()
+```
+
+## (b) Calculate a 95% credible interval for each parameter.
+
+To be more precise and present the numbers of the 95% CI of the
+parameters, the following procedure is performed.
+
+```{r 95CI.parameters}
+attach.jags(model.potatoes)
+
+# Compute credible intervals for b0, b1, and sigma
+b0.CI <- quantile(b0, c(0.025, 0.975))
+b1.CI <- quantile(b1, c(0.025, 0.975))
+sigma.CI <- quantile(sigma, c(0.025, 0.975))
+
+# Display credible intervals for the intercept (b0), slope (b1), and standard deviation (sigma) parameters.
+cat("95% Credible Interval for Intercept (b0): ", b0.CI[1], " to ", b0.CI[2], "\n")
+cat("95% Credible Interval for Slope (b1): ", b1.CI[1], " to ", b1.CI[2], "\n")
+cat("95% Credible Interval for Standard Deviation (sigma): ", sigma.CI[1], " to ", sigma.CI[2], "\n")
+detach.jags()
+
+```
+
+## (c) Calculate a 95% credible interval for y given x = 4.
+
+In this section, the prediction of a 95% probability interval of the
+potato yielding ($y$) given a fertilizer level $x=4$ is taking place. To
+perform this analysis, it is necessary to simulate $M$ values from the
+predictive posterior distribution. As the the number of the simulations
+increases, the approximation of the prediction is closer to the real
+one. In this approach, $M$ is being set equal to $10Mil$. The same
+number of iterations kept from the markov chains, after they converged
+to their stationary distribution, could also be used as M, but in order
+to get more precise results a way bigger number ($10Mil$) was selected.
+By providing the results of the JAGS simulations to the function
+`rnorm`, 10 milion simulations of the posterior predictive distribution,
+specifically for $x$ being equal to 4 will be returned. In the following
+figure we can have a look at the density estimation of the returned
+vector.
+
+```{r 95CI.pred.x4}
+# prediction of probability interval of the potato yielding given a fertilizer level equal to 4.0.
+attach.jags(model.potatoes)
+M <- 10000000
+
+# Simulation of the potato yielding given a fertilizer level equal to 4.0.
+y.x4 <- rnorm(M, b0+b1*4, sigma)
+#y.x4
+
+plot(density(y.x4))
+
+detach.jags()
+```
+
+Finally, in order to provide a 95% CI for the yielding potatoes when the
+fertilizer level is equal to 4, the following operations are conducted.
+
+```{r print.95CI.pred.x4}
+
+cat("Summary of y.x4:\n")
+print(summary(y.x4))
+
+cat("\n95% Confidence Interval (2.5th and 97.5th percentiles):\n")
+print(quantile(y.x4, c(0.025, 0.975)))
+```
