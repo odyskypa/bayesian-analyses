@@ -47,6 +47,11 @@ a) Using non-informative priors for the parameters, draw the posterior distribut
 b) Calculate a **95%** credible interval for each parameter.
 c) Calculate a **95%** credible interval for y given `x = 4`.
 
+
+### JAGS (Just Another Gibbs Sampler)
+
+JAGS is used in `Assignment 2` for Bayesian inference. It is a program for the analysis of Bayesian hierarchical models using **Markov Chain Monte Carlo (MCMC)** simulation.
+
 ## Solution Files
 
 ### [traffic-accidents.html](./html/traffic-accidents.html)
