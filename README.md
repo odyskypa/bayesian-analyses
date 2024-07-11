@@ -58,14 +58,45 @@ JAGS is used in `Assignment 2` for Bayesian inference. It is a program for the a
 
 The solution to `Assignment 1` includes:
 - Graphs showing the prior distributions for Bru, Clàudia, and Carles.
+    ![Priors](./images/accidents-priors.png)
 - The likelihood function based on the collected data.
+    ![Likelihood](./images/likelihood.png)
 - Posterior distributions for each student's model.
+    ![Posteriors](./images/accidents-posteriors.png)
 - Calculations of the **90%** credible intervals for the number of accidents next weekend.
 
 ### [yield-potatoes.html](./html/yield-potatoes.html)
 
 The solution to `Assignment 2` includes:
+- Problem exploration and target variable formulation:
+    ![Fertilizer-vs-Yield](./images/fertilizedd-vs-potatoes-yield.png)
+    - From the visualization one can understand that the problem can be modeled as:
+        - $p(y|x) \sim \text{Normal}(\beta_0 + \beta_1 x, \sigma)$
+- Usage of non-informative priors for the parameters:
+    $$
+    \beta_0 \sim \text{Normal}(0, 1000000)
+    $$
+    ![Prior b0](./images/prior-bo.png)
+
+    $$
+    \beta_1 \sim \text{Normal}(0, 1000000)
+    $$
+    ![Prior b1](./images/prior_b1.png)
+
+    $$
+    \sigma \sim \text{Uniform}(0, 1000000)
+    $$
+    ![Prior sigma](./images/prior-sigma.png)
 - Posterior distributions for the parameters **β0**, **β1**, and **σ**.
+    ![JAGS Posteriors](./images/JAGS-results.png)
+    - Defined of the Bayesian Model using `JAGS`.
+    - Simulated two Markov Chains.
+    - Performed `3` Thins of `10,000` iterations.
+    - Included `1,000` burn-in simulations.
+        - `MCMC` stationarity convergence check:
+        ![MCMC Stationarity](./images/MCMC-stationarity-convergence.png)
+
+    
 - **95%** credible intervals for the parameters.
 - A **95%** credible interval for the yield `(y)` given the fertilizer level `(x) = 4`.
 
